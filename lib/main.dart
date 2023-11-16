@@ -33,6 +33,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isCapturing = false;
 
   late PageController _pageController;
+  int _currentPage = 0;
 
   @override
   void initState() {
@@ -44,60 +45,60 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _initializeCamera() async {
-  try {
-    cameras = await availableCameras();
-    if (cameras.isEmpty) {
-      throw 'No cameras available';
-    }
-
-    _controller = CameraController(cameras[0], ResolutionPreset.high);
-
-    await _controller.initialize();
-
-    // Configure flash mode to auto (you can also use off if you want to completely disable flash)
-    await _controller.setFlashMode(FlashMode.auto);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      isCameraReady = true;
-    });
-  } catch (e) {
-    print('Ошибка инициализации камеры: $e');
-    setState(() {
-      isCameraReady = false;
-    });
-  }
-}
-
-Future<void> _capturePhoto() async {
-  if (!_isCapturing && MediaQuery.of(context).orientation == Orientation.portrait) {
-    setState(() {
-      _isCapturing = true;
-    });
-
     try {
-      // Configure the flash mode to auto before taking the picture
+      cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw 'No cameras available';
+      }
+
+      _controller = CameraController(cameras[0], ResolutionPreset.high);
+
+      await _controller.initialize();
+
+      // Configure flash mode to auto (you can also use off if you want to completely disable flash)
       await _controller.setFlashMode(FlashMode.auto);
 
-      final XFile photo = await _controller.takePicture();
-      print('Фотография сохранена по пути: ${photo.path}');
+      if (!mounted) {
+        return;
+      }
 
-      // Сохранение фотографии в галерею
-      await GallerySaver.saveImage(photo.path);
-
-      // Здесь вы можете выполнить дополнительные действия с фотографией
-    } catch (e) {
-      print('Ошибка при съемке фотографии: $e');
-    } finally {
       setState(() {
-        _isCapturing = false;
+        isCameraReady = true;
+      });
+    } catch (e) {
+      print('Ошибка инициализации камеры: $e');
+      setState(() {
+        isCameraReady = false;
       });
     }
   }
-}
+
+  Future<void> _capturePhoto() async {
+    if (!_isCapturing && MediaQuery.of(context).orientation == Orientation.portrait) {
+      setState(() {
+        _isCapturing = true;
+      });
+
+      try {
+        // Configure the flash mode to auto before taking the picture
+        await _controller.setFlashMode(FlashMode.auto);
+
+        final XFile photo = await _controller.takePicture();
+        print('Фотография сохранена по пути: ${photo.path}');
+
+        // Сохранение фотографии в галерею
+        await GallerySaver.saveImage(photo.path);
+
+        // Здесь вы можете выполнить дополнительные действия с фотографией
+      } catch (e) {
+        print('Ошибка при съемке фотографии: $e');
+      } finally {
+        setState(() {
+          _isCapturing = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -141,32 +142,45 @@ Future<void> _capturePhoto() async {
     );
   }
 
-Widget _buildCameraView() {
-  if (MediaQuery.of(context).orientation == Orientation.portrait && isCameraReady) {
-    return Stack(
-      children: [
-        CameraPreview(_controller),
-        Positioned(
-          bottom: 16.0,
-          left: 0.0,
-          right: 0.0,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: _isCapturing
-                ? CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _capturePhoto,
-                    child: Text('Сфотографировать'),
-                  ),
+  Widget _buildCameraView() {
+    if (MediaQuery.of(context).orientation == Orientation.portrait && isCameraReady) {
+      return Stack(
+        children: [
+          CameraPreview(_controller),
+          Positioned(
+            bottom: 16.0,
+            left: 0.0,
+            right: 0.0,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                margin: EdgeInsets.only(bottom: 16.0),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton(
+                  onPressed: _capturePhoto,
+                  child: _isCapturing
+                      ? CircularProgressIndicator()
+                      : Icon(Icons.camera_alt),
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
-    );
-  } else {
-    return Text('Пожалуйста, поверните устройство в вертикальное положение.');
+        ],
+      );
+    } else {
+      return Text('Пожалуйста, поверните устройство в вертикальное положение.');
+    }
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +190,11 @@ Widget _buildCameraView() {
       ),
       body: PageView(
         controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentPage = index;
+          });
+        },
         children: [
           // Вкладка геопозиции
           Center(
@@ -211,16 +230,9 @@ Widget _buildCameraView() {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                if (isCameraReady)
-                  ElevatedButton(
-                    onPressed: _capturePhoto,
-                    child: _isCapturing
-                        ? CircularProgressIndicator()
-                        : Text('Сфотографировать'),
-                  ),
+                if (isCameraReady) _buildCameraView(),
                 if (!isCameraReady)
                   Text('Камера не инициализирована. Пожалуйста, перезапустите приложение.'),
-                _buildCameraView(),
               ],
             ),
           ),
@@ -241,6 +253,7 @@ Widget _buildCameraView() {
             label: 'Камера',
           ),
         ],
+        currentIndex: _currentPage,
         onTap: (index) {
           if (MediaQuery.of(context).orientation == Orientation.portrait) {
             _scrollToPage(index);
