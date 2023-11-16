@@ -3,6 +3,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:sensors/sensors.dart';
 import 'package:camera/camera.dart';
 import 'package:gallery_saver/gallery_saver.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(MyApp());
@@ -26,6 +28,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String _locationData = 'Местоположение не определено';
   String _accelerometerData = 'Данные акселерометра не определены';
   String _gyroscopeData = 'Данные гироскопа не определены';
+  String _address = 'Адрес не определен';
 
   late List<CameraDescription> cameras;
   late CameraController _controller;
@@ -34,6 +37,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   late PageController _pageController;
   int _currentPage = 0;
+
+  final String apiKey = 'f67c2e9f0f8311fd45a72687767b9b22eca31a70';
 
   @override
   void initState() {
@@ -112,10 +117,50 @@ class _MyHomePageState extends State<MyHomePage> {
       desiredAccuracy: LocationAccuracy.high,
     );
 
+    await _getAddressFromApi(position.latitude, position.longitude);
+
     setState(() {
       _locationData =
           'Широта: ${position.latitude}, Долгота: ${position.longitude}';
     });
+  }
+
+  Future<void> _getAddressFromApi(double latitude, double longitude) async {
+    final apiUrl =
+        'https://suggestions.dadata.ru/suggestions/api/4_1/rs/geolocate/address';
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Token $apiKey',
+    };
+
+    final body = jsonEncode({
+      'lat': latitude,
+      'lon': longitude,
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: headers,
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        final address = jsonResponse['suggestions'][0]['value'];
+
+        setState(() {
+          _address = 'Текущий адрес: $address';
+        });
+
+        print('Текущий адрес: $address');
+      } else {
+        print('Ошибка при запросе адреса: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Ошибка при запросе адреса: $e');
+    }
   }
 
   void _getSensorData() {
@@ -205,6 +250,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   _locationData,
                   style: TextStyle(fontSize: 18),
                 ),
+                SizedBox(height: 20),
+                Text(
+                  _address,
+                  style: TextStyle(fontSize: 18),
+                ),
               ],
             ),
           ),
@@ -246,7 +296,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.accessibility_new),
-            label: 'Акселерометр/Гироскоп',
+            label: 'Гироскоп',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.camera),
